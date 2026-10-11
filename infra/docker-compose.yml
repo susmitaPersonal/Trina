@@ -1,0 +1,55 @@
+# Production-like stack. For zero-setup dev, just run `pnpm dev:server` (embedded PGlite).
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: trina
+      POSTGRES_PASSWORD: trina
+      POSTGRES_DB: trina
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trina"]
+      interval: 5s
+      retries: 10
+
+  ollama:
+    # Self-hosted open-weight model, OpenAI-compatible API at http://ollama:11434/v1
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes: [ollama:/root/.ollama]
+
+  api:
+    build: { context: .., dockerfile: infra/Dockerfile.server }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://trina:trina@postgres:5432/trina
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (32+ chars)}
+      RUN_WORKER_IN_PROCESS: "false"
+      LLM_BASE_URL: http://ollama:11434/v1
+      LLM_MODEL: ${LLM_MODEL:-qwen3:4b}
+      STORAGE_DIR: /data/evidence
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+    ports: ["3000:3000"]
+    volumes: [evidence:/data/evidence]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  worker:
+    build: { context: .., dockerfile: infra/Dockerfile.server }
+    command: ["pnpm", "--filter", "@trina/server", "worker"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://trina:trina@postgres:5432/trina
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (32+ chars)}
+      LLM_BASE_URL: http://ollama:11434/v1
+      LLM_MODEL: ${LLM_MODEL:-qwen3:4b}
+      STORAGE_DIR: /data/evidence
+    volumes: [evidence:/data/evidence]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  ollama:
+  evidence:

@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "Trina",
+    "slug": "trina",
+    "scheme": "trina",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "app.trina.mobile",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Trina uses your location only during a challenge, starting at the challenge's public start zone, to check checkpoints.",
+        "NSMotionUsageDescription": "Trina counts your steps during a challenge (optional).",
+        "NSCameraUsageDescription": "Trina takes evidence photos for challenge tasks.",
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "android": {
+      "package": "app.trina.mobile",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "ACTIVITY_RECOGNITION",
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": ["ACCESS_BACKGROUND_LOCATION"]
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-status-bar",
+      "expo-background-task",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Trina uses your location only during a challenge, starting at the challenge's public start zone.",
+          "isAndroidForegroundServiceEnabled": true,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isIosBackgroundLocationEnabled": true
+        }
+      ],
+      ["expo-camera", { "cameraPermission": "Trina takes evidence photos for challenge tasks.", "recordAudioAndroid": false }],
+      ["expo-sensors", { "motionPermission": "Trina counts your steps during a challenge (optional)." }],
+      "expo-notifications"
+    ],
+    "extra": {
+      "apiUrl": "http://10.0.2.2:3000"
+    }
+  }
+}

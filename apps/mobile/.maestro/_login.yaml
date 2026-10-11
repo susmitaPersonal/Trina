@@ -1,0 +1,13 @@
+appId: app.trina.mobile
+---
+- launchApp
+- runFlow:
+    when:
+      visible: "Sign in"
+    commands:
+      - tapOn: "Email"
+      - inputText: ${EMAIL}
+      - tapOn: "Password"
+      - inputText: ${PASSWORD}
+      - tapOn: "Sign in"
+- assertVisible: "Hi .*"

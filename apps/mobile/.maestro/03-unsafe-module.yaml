@@ -1,0 +1,10 @@
+appId: app.trina.mobile
+---
+- runFlow: _login.yaml
+- tapOn: "Create"
+- tapOn: "🧩 Build a new activity"
+- tapOn: "Your idea"
+- inputText: "rooftop kite flying"
+- tapOn: "Draft it"
+- assertVisible: ".*high fall risk.*Try something at ground level, in daylight.*"
+- assertNotVisible: "Save module"

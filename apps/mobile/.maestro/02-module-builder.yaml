@@ -1,0 +1,13 @@
+appId: app.trina.mobile
+---
+- runFlow: _login.yaml
+- tapOn: "Create"
+- tapOn: "🧩 Build a new activity"
+- tapOn: "kite flying with friends in the field"
+- tapOn: "Draft it"
+- assertVisible: "Safety: .*No glass-coated string.*"
+- assertVisible: "Points and thresholds are set by Trina, never by the AI.*"
+- tapOn: "Save module"
+- assertVisible: "Publish privately"
+- tapOn: "Share by link (unlisted)"
+- assertVisible: "Published · unlisted"

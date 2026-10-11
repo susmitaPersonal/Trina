@@ -1,0 +1,10 @@
+appId: app.trina.mobile
+---
+- runFlow: _login.yaml
+- tapOn: "Profile"
+- tapOn: "Status"
+- assertVisible: "STATS"
+- assertVisible: "YOUR MEADOW THIS WEEK"
+- back
+- tapOn: "Milestones"
+- assertVisible: "All"

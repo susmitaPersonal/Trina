@@ -1,0 +1,34 @@
+{
+  "name": "trina",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Trina (\u09a4\u09c3\u09a3): offline-first outdoor challenges with local open-weight AI",
+  "packageManager": "pnpm@10.31.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter ./packages/** build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --workspace-concurrency=1 test",
+    "lint": "eslint .",
+    "dev:server": "pnpm --filter @trina/server dev",
+    "dev:worker": "pnpm --filter @trina/server worker",
+    "dev:infra": "docker compose -f infra/docker-compose.yml up -d",
+    "eval:ai": "pnpm --filter @trina/ai eval",
+    "smoke": "pnpm --filter @trina/server smoke",
+    "test:ui": "pnpm --filter @trina/mobile test:ui",
+    "coverage": "pnpm -r --workspace-concurrency=1 exec vitest run --coverage",
+    "android": "pnpm --filter @trina/mobile android",
+    "android:apk": "pnpm --filter @trina/mobile android:apk"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^9.39.0",
+    "fast-check": "^4.10.2",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^4.0.0"
+  }
+}

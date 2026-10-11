@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -w lint
+      - run: pnpm -r typecheck
+      - name: Unit, integration, system, chaos and UI tests
+        run: pnpm -r --workspace-concurrency=1 test
+      - name: Live smoke test (real server process over HTTP)
+        run: pnpm smoke
+      - name: AI eval (rule-based baseline gate ≥ 90 %)
+        run: pnpm eval:ai
+      - name: Bundle mobile JS (Metro)
+        working-directory: apps/mobile
+        run: CI=1 npx expo export --platform android --output-dir /tmp/trina-bundle

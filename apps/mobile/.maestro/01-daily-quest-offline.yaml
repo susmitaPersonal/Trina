@@ -1,0 +1,21 @@
+appId: app.trina.mobile
+---
+- runFlow: _login.yaml
+- tapOn: "Today"
+- assertVisible: "DAILY QUESTS.*"
+- tapOn: "Start a .*-min offline quest"
+- assertVisible: "Go offline"
+# Online: Start is locked and the shortcut to the internet settings is offered.
+- assertVisible: "Turn the internet off to start"
+- assertVisible: "Open internet settings"
+- setAirplaneMode: enabled
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "Offline: ready"
+- tapOn: "Start quest"
+- assertVisible: "OFFLINE QUEST.*"
+- tapOn: "Challenge menu"
+- tapOn: "Stop quest"
+- tapOn: "Safety: Bad weather"
+- assertVisible: "Stopped for safety: no points lost"
+- setAirplaneMode: disabled

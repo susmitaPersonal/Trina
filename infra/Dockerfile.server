@@ -1,0 +1,8 @@
+FROM node:24-slim
+RUN corepack enable
+WORKDIR /repo
+COPY . .
+RUN pnpm install --frozen-lockfile --filter @trina/server...
+ENV NODE_ENV=production
+EXPOSE 3000
+CMD ["pnpm", "--filter", "@trina/server", "start"]

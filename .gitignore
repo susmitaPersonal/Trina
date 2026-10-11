@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+.data/
+*.log
+.DS_Store
+# Expo / RN
+.expo/
+apps/mobile/android/
+apps/mobile/ios/
+*.gguf
+infra/tiles/*.pmtiles
