@@ -11,6 +11,12 @@ Create a challenge ("60 minutes, 5 friends, cycle the park and pick up litter"),
 **syncs automatically**, the server **validates** it with deterministic rules, and the
 **leaderboard** updates.
 
+**New this week:** offline **Daily Quests** (turn the internet off, go outside, your minutes count),
+**milestones** with honest verification labels (Measured · Evidenced · Confirmed · Self-reported),
+XP and ranks from E to **Trina**, **cricket and football**, and an **AI Module Builder**: describe a new
+activity ("kite flying with friends") and a local open-weight model drafts it, while plain code sets every
+number and refuses unsafe ideas ("rooftop kite flying" → refused, with the reason).
+
 ## Why it's interesting
 
 - **Offline-first:** SQLite on the device is the source of truth, with an append-only event log,
@@ -18,8 +24,10 @@ Create a challenge ("60 minutes, 5 friends, cycle the park and pick up litter"),
 - **Local AI that matters:** an open-weight model (on-device via llama.cpp, or self-hosted) turns
   natural language into a structured challenge. Deterministic code makes every scoring and
   validation decision.
-- **Pluggable challenge modules:** adding a new outdoor activity means adding a folder in
-  `packages/engine/src/modules/`.
+- **Pluggable challenge modules:** built-in TypeScript modules plus **data modules** (JSON the engine
+  interprets: no code, no eval) that players can create at runtime with the AI Module Builder.
+- **Fair by construction:** points budget per minute by level, self-reported counts earn titles only,
+  teammates confirm catches and goals by a **signed QR handshake that works offline**.
 - **Privacy by design:** no home locations, coarse discovery, and raw GPS that expires.
 - **Honest anti-cheat:** it flags suspicious sessions and never claims perfect detection.
 
@@ -46,7 +54,7 @@ Create a challenge ("60 minutes, 5 friends, cycle the park and pick up litter"),
 ```bash
 pnpm install
 pnpm dev:server                 # API on :3000 with an embedded DB and demo data (no Docker needed)
-pnpm -r --workspace-concurrency=1 test   # 339 tests (unit, server, system, chaos, UI)
+pnpm -r --workspace-concurrency=1 test   # 526 tests (unit, property, server, system, chaos, UI)
 pnpm android                    # Android build + install (setup: docs/guides/android-on-mac.md)
 ```
 
@@ -54,7 +62,7 @@ Demo login: `arjun@trina.dev` / `touch-grass-2026`. Full guide: [docs/guides/run
 
 ## Status
 
-✅ MVP implemented (server, engine, AI, mobile app, offline sync); next is real-device and outdoor testing. See [docs/STATUS.md](docs/STATUS.md).
+✅ Implemented: server, engine, AI, mobile app, offline sync, Daily Quests, milestones, custom modules, guilds. Next: real-device and outdoor testing. See [docs/STATUS.md](docs/STATUS.md).
 
 ## License
 
