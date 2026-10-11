@@ -14,7 +14,9 @@
         "NSLocationWhenInUseUsageDescription": "Trina uses your location only during a challenge, starting at the challenge's public start zone, to check checkpoints.",
         "NSMotionUsageDescription": "Trina counts your steps during a challenge (optional).",
         "NSCameraUsageDescription": "Trina takes evidence photos for challenge tasks.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -26,9 +28,16 @@
         "FOREGROUND_SERVICE_LOCATION",
         "ACTIVITY_RECOGNITION",
         "CAMERA",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.CAMERA"
       ],
-      "blockedPermissions": ["ACCESS_BACKGROUND_LOCATION"]
+      "blockedPermissions": [
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
     },
     "plugins": [
       "expo-sqlite",
@@ -44,12 +53,26 @@
           "isIosBackgroundLocationEnabled": true
         }
       ],
-      ["expo-camera", { "cameraPermission": "Trina takes evidence photos for challenge tasks.", "recordAudioAndroid": false }],
-      ["expo-sensors", { "motionPermission": "Trina counts your steps during a challenge (optional)." }],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Trina takes evidence photos for challenge tasks.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Trina counts your steps during a challenge (optional)."
+        }
+      ],
       "expo-notifications"
     ],
     "extra": {
-      "apiUrl": "http://10.0.2.2:3000"
+      "apiUrl": "http://10.0.2.2:3000",
+      "eas": {
+        "projectId": "26eedc1a-25f6-40dd-a0f6-9f59219e576a"
+      }
     }
   }
 }

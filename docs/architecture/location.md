@@ -28,8 +28,13 @@ Tracking **starts only at `SessionStarted`** (inside the start zone) and **stops
 |---|---|---|---|
 | Far from next CP (> 300 m) | Balanced | 10 s | 15 m |
 | Near a CP (< 300 m) | High | 3 s | 5 m |
+| No checkpoint ahead (offline quest, open play area) | High (GPS) | 15 s | 0 m |
 | Stationary (≈0 speed for 2 min) | Balanced | 30 s | 20 m |
 | Dwell modules (football, cricket) | Balanced | 30 s | 25 m |
+
+Balanced accuracy leans on Wi-Fi/cell positioning, which is switched off during an offline quest, so sessions
+with no checkpoint ahead use GPS. No distance filter there: a player standing still must keep producing fixes
+inside the engine's 60 s dwell gap, or their time outside stops counting.
 
 Target battery cost: **≤ 10 % per hour** on a mid-range Android device.
 

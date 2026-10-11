@@ -13,15 +13,21 @@ let appStateSub: NativeEventSubscription | null = null;
 let stepsPending = 0;
 let stepsTotal = 0;
 let mode: 'background' | 'foreground_only' | null = null;
-let currentProfile: 'far' | 'near' | null = null;
+type Profile = 'far' | 'near' | 'open';
+let currentProfile: Profile | null = null;
 
-/** Adaptive sampling (docs/architecture/location.md §3): high accuracy only near checkpoints. */
-function optionsFor(profile: 'far' | 'near'): Location.LocationTaskOptions {
+/**
+ * Adaptive sampling (docs/architecture/location.md §3): high accuracy only near checkpoints.
+ * 'open' is for sessions with no checkpoint ahead (offline quests, play areas): GPS-only accuracy, because
+ * Balanced relies on Wi-Fi/cell, which are off during an offline quest; and no distance filter, so a player
+ * standing still keeps producing fixes inside the 60 s dwell gap.
+ */
+function optionsFor(profile: Profile): Location.LocationTaskOptions {
   const near = profile === 'near';
   return {
-    accuracy: near ? Location.Accuracy.BestForNavigation : Location.Accuracy.Balanced,
-    timeInterval: near ? 3000 : 10_000,
-    distanceInterval: near ? 5 : 15,
+    accuracy: near ? Location.Accuracy.BestForNavigation : profile === 'open' ? Location.Accuracy.High : Location.Accuracy.Balanced,
+    timeInterval: near ? 3000 : profile === 'open' ? 15_000 : 10_000,
+    distanceInterval: near ? 5 : profile === 'open' ? 0 : 15,
     activityType: Location.ActivityType.Fitness,
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
@@ -33,7 +39,7 @@ function optionsFor(profile: 'far' | 'near'): Location.LocationTaskOptions {
   };
 }
 
-async function startUpdates(profile: 'far' | 'near') {
+async function startUpdates(profile: Profile) {
   currentProfile = profile;
   try {
     await Location.startLocationUpdatesAsync(LOCATION_TASK, optionsFor(profile));
@@ -55,7 +61,7 @@ async function startUpdates(profile: 'far' | 'near') {
 /** Re-tunes GPS accuracy based on distance to the next checkpoint (battery). */
 export async function adaptSampling(distanceToNextM: number | null) {
   if (mode !== 'background') return;
-  const want = distanceToNextM !== null && distanceToNextM < 300 ? 'near' : 'far';
+  const want: Profile = distanceToNextM === null ? 'open' : distanceToNextM < 300 ? 'near' : 'far';
   if (want !== currentProfile) await startUpdates(want);
 }
 
