@@ -97,6 +97,8 @@ describe('Host a party', () => {
   it('rank E caps the length at 45 min; creates a signed invite with check words; Start needs the phone offline', async () => {
     await render(<PartyHostScreen {...props('PartyHost')} />);
     expect(await screen.findByText(/GPS ready/)).toBeTruthy();
+    // Online: the party signing key is registered BEFORE the phone goes offline (fresh sign-ups had none).
+    await waitFor(() => expect(mockServices.ensureDeviceKey).toHaveBeenCalled());
     expect(screen.queryByText('60 min')).toBeNull();
     expect(screen.getByText('45 min')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: /Create invite/ }));

@@ -87,7 +87,10 @@ function useOfflineReady() {
   useEffect(() => {
     void (async () => {
       const c = await currentConnectivity();
-      if (c.online) await syncNow(); // own data syncs BEFORE going offline
+      if (c.online) {
+        await syncNow(); // own data syncs BEFORE going offline
+        await (await getServices()).ensureDeviceKey(); // the party key must be registered while online
+      }
       setPresynced(true);
       setOnline(c.online);
     })();

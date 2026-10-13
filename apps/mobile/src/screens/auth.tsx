@@ -24,11 +24,16 @@ async function onSignedIn(auth: AuthResponse) {
   const me = { userId: auth.user.id, email: auth.user.email, displayName: auth.user.displayName, role: auth.user.role, shareWellbeing: auth.user.shareWellbeing };
   // A different user signing in must never upload the previous user's queued data under their account.
   const prev = await s.store.getMeta('last_user_id');
-  if (prev && prev !== me.userId) await s.store.setMeta('quarantined_user_id', prev);
+  if (prev && prev !== me.userId) {
+    await s.store.setMeta('quarantined_user_id', prev);
+    await s.store.setMeta('device_key_registered', '0'); // the new account registers this phone's key too
+  }
   await s.store.setMeta('last_user_id', me.userId);
   await s.setMe(me);
   useApp.getState().set({ me });
   void syncNow();
+  // Signing key for confirmations and offline parties: register it now, while online (not only on the next app start).
+  void s.ensureDeviceKey();
 }
 
 export function LoginScreen({ navigation }: NativeStackScreenProps<RootParams, 'Login'>) {
