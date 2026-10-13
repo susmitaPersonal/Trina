@@ -13,3 +13,4 @@ export * from './module/compile-module-intent';
 export * from './module/template';
 export * from './module/builder';
 export * from './module/eval';
+export * from './theme';

@@ -1,5 +1,8 @@
 import { RegisterDeviceKeyRequest, type DailyQuestDto, type MilestoneCatalogItemDto, type ProgressDto, type Rank, type Stat, type Verification } from '@trina/contracts';
 import {
+  adaptQuest,
+  RANK_MAX_MINUTES,
+  type SessionSummary,
   buildMilestoneCatalog,
   DAILY_XP_CAP,
   dayKeyOf,
@@ -116,12 +119,21 @@ export function progressRouter(ctx: AppContext): Router {
     const q = parseQuery(z.object({ date: DateKey.optional() }), req);
     const day = q.date ?? dayKeyOf(ctx.now().getTime(), 0);
     const p = await ctx.db.one<{ rank: Rank }>('SELECT rank FROM user_progress WHERE user_id = $1', [me.id]);
-    const level = levelTierForRank(p?.rank ?? 'E');
+    const rank = p?.rank ?? 'E';
+    const level = levelTierForRank(rank);
+    // Adaptive length (ADR-032) from VERIFIED quest history; the phone computes the same from its own view.
+    const history = await ctx.db.query<{ summary: SessionSummary }>(
+      `SELECT summary FROM session_summaries WHERE user_id = $1 AND verified = true AND day_key >= $2 AND day_key <= $3`,
+      [me.id, dayKeyOf(Date.parse(`${day}T00:00:00Z`) - 21 * 86_400_000, 0), day],
+    );
+    const adapted = adaptQuest(history.map((h) => h.summary), { rank, todayKey: day });
     const byId = new Map(GENERIC_MILESTONES.map((m) => [m.id, m]));
     const dto: DailyQuestDto = {
       dayKey: day,
       levelTier: level.levelTier,
-      targetMinutes: level.targetMinutes,
+      targetMinutes: adapted.targetMinutes,
+      targetReason: adapted.reason,
+      maxMinutes: RANK_MAX_MINUTES[rank],
       quests: pickDailyQuests(me.id, day).map((id) => ({ key: `*@1:${id}`, title: byId.get(id)!.title, stat: byId.get(id)!.stat as Stat })),
     };
     res.json(dto);

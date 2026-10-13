@@ -65,6 +65,8 @@ export function initialState(compiled: CompiledChallenge): SessionState {
     confirmationIds: [],
     tzOffsetMin: null,
     quest: null,
+    party: null,
+    sightings: 0,
     online: null,
     offlineSinceMono: null,
     offlineIntervals: [],
@@ -272,6 +274,7 @@ export function applyEvent(compiled: CompiledChallenge, s: SessionState, e: Acti
       s.startClientTs = e.clientTs;
       s.tzOffsetMin = e.payload.tzOffsetMin ?? null;
       s.quest = e.payload.quest ?? null;
+      s.party = e.payload.party ? { partyId: e.payload.party.invite.body.partyId, role: e.payload.party.role } : null;
       const f = e.payload.startFix;
       processSample(compiled, s, {
         ts: f.ts, monoMs: e.monoMs, lat: f.lat, lng: f.lng, acc: f.acc,
@@ -427,6 +430,9 @@ export function applyEvent(compiled: CompiledChallenge, s: SessionState, e: Acti
       s.online = e.payload.online;
       return;
     }
+    case 'PeerSighting':
+      s.sightings++;
+      return;
     case 'QuestStopped':
       s.questStop = e.payload.kind;
       return;

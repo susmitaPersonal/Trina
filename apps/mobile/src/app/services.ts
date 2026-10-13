@@ -8,6 +8,7 @@ import { MilestoneService } from '../core/milestones';
 import { systemClock } from '../core/clock';
 import { migrateLocal } from '../core/migrations';
 import { OfflineStore } from '../core/offline-store';
+import { PartyService } from '../core/party';
 import { SessionManager } from '../core/session-manager';
 import type { SqlDb } from '../core/sql';
 import { SyncWorker } from '../core/sync-worker';
@@ -38,6 +39,8 @@ export type Services = {
   quest: { active: boolean; sessionId: string | null };
   milestones(): Promise<MilestoneService>;
   confirmations(): Promise<ConfirmationService>;
+  /** Offline Party Mode (ADR-033): invites, QR meetings and progress gossip. */
+  party(): Promise<PartyService>;
   /** Creates the device key once and registers its public key with the server (when online). */
   ensureDeviceKey(): Promise<void>;
 };
@@ -84,6 +87,7 @@ export function getServices(): Promise<Services> {
     let manager: SessionManager | null = null;
     let managerUser: string | null = null;
     let confirmService: ConfirmationService | null = null;
+    let partyService: PartyService | null = null;
 
     const me = async (): Promise<Me | null> => {
       const r = await db.get<any>('SELECT * FROM me LIMIT 1');
@@ -116,6 +120,13 @@ export function getServices(): Promise<Services> {
         confirmService ??= new ConfirmationService(db, sm, secureDeviceKeys, { userId: m.userId, deviceId: deviceId!, displayName: m.displayName });
         return confirmService;
       },
+      async party() {
+        const m = await me();
+        if (!m) throw new Error('Not signed in');
+        const sm = await svc.sessions();
+        partyService ??= new PartyService(db, sm, secureDeviceKeys, { userId: m.userId, deviceId: deviceId!, displayName: m.displayName });
+        return partyService;
+      },
       async ensureDeviceKey() {
         if ((await store.getMeta('device_key_registered')) === '1') return;
         const c = await svc.confirmations();
@@ -144,6 +155,7 @@ export function getServices(): Promise<Services> {
           manager = new SessionManager(db, store, systemClock, { userId: m.userId, deviceId: deviceId! }, { milestones: await svc.milestones() });
           managerUser = m.userId;
           confirmService = null;
+          partyService = null;
         }
         return manager;
       },

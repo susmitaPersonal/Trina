@@ -1,5 +1,5 @@
 import { definitionHash, uuidv7, type ChallengeDefinition, type ChallengeSummary, type CompileIssue } from '@trina/contracts';
-import { bboxOf, compile, DAILY_QUEST_CHALLENGE_ID, ENGINE_VERSION, haversineM, renderRules, type CompiledChallenge, type ModuleRegistry } from '@trina/engine';
+import { bboxOf, compile, DAILY_QUEST_CHALLENGE_ID, PARTY_CHALLENGE_ID, ENGINE_VERSION, haversineM, renderRules, type CompiledChallenge, type ModuleRegistry } from '@trina/engine';
 import { registryForDefinition } from '../datamodules/service';
 import type { AppContext } from '../../platform/context';
 import type { Db } from '../../platform/db';
@@ -40,7 +40,7 @@ export async function compileFor(db: Db, input: unknown, user?: { id: string; ro
 }
 
 export async function getChallenge(db: Db, id: string): Promise<ChallengeRow> {
-  if (id === DAILY_QUEST_CHALLENGE_ID) throw notFound('Challenge'); // anchor row for offline quests, never shown
+  if (id === DAILY_QUEST_CHALLENGE_ID || id === PARTY_CHALLENGE_ID) throw notFound('Challenge'); // anchor rows for offline quests/parties, never shown
   const c = await db.one<ChallengeRow>('SELECT * FROM challenges WHERE id = $1', [id]);
   if (!c) throw notFound('Challenge');
   return c;

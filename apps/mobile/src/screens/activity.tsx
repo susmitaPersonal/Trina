@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { bearingDeg, haversineM, type BreakdownItem, type CompiledChallenge } from '@trina/engine';
+import { bearingDeg, haversineM, PARTY_CHALLENGE_ID, type BreakdownItem, type CompiledChallenge } from '@trina/engine';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
@@ -133,7 +133,8 @@ export function LiveScreen({ route, navigation }: NativeStackScreenProps<RootPar
   const needsPhoto = task && task.evidence.length > 0;
   const canManual = next && dist !== null && dist <= next.geometry.radiusM + 75 && dist > next.geometry.radiusM;
 
-  const isQuest = !!state.quest;
+  // Parties follow Offline Quest Mode too (internet off, safety stops never cost anything).
+  const isQuest = !!state.quest || !!state.party;
   const stopQuest = () =>
     Alert.alert('Stop quest?', 'Stopping for safety never costs points. Take care of yourself first.', [
       { text: 'Keep going', style: 'cancel' },
@@ -253,6 +254,9 @@ export function LiveScreen({ route, navigation }: NativeStackScreenProps<RootPar
       )}
 
       <CounterPad snap={snap} sessionId={sessionId} onChange={() => void refresh()} />
+      {snap.challenge.id === PARTY_CHALLENGE_ID ? (
+        <Btn title="Party: goal, meet, share" icon="🎉" kind="secondary" onPress={() => navigation.navigate('PartyPlay', { sessionId })} />
+      ) : null}
       {!isQuest && (confirmableClaims(snap).length || snap.compiled.modules.some((m) => (m.counters ?? []).some((c) => c.verification !== 'self_report'))) ? (
         <Row>
           <Btn title="Ask to confirm" icon="🤝" kind="secondary" onPress={() => navigation.navigate('Confirm', { sessionId, mode: 'ask' })} style={{ flex: 1 }} />

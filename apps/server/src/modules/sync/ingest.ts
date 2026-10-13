@@ -1,5 +1,5 @@
-import { ActivityEvent, uuidv7, type PushRequest, type PushSessionResult, type RejectedEvent } from '@trina/contracts';
-import { DAILY_QUEST_CHALLENGE_ID } from '@trina/engine';
+import { ActivityEvent, inviteHash, PARTY_MAX_MEMBERS, uuidv7, type PartyInvite, type PushRequest, type PushSessionResult, type RejectedEvent } from '@trina/contracts';
+import { DAILY_QUEST_CHALLENGE_ID, PARTY_CHALLENGE_ID } from '@trina/engine';
 import type { AppContext } from '../../platform/context';
 import type { Db } from '../../platform/db';
 
@@ -70,17 +70,22 @@ export async function ingestPush(ctx: AppContext, userId: string, body: PushRequ
         // Offline Daily Quests need no join: the definition is rebuilt from the template (design §5A.2).
         const isQuest = p.challengeId === DAILY_QUEST_CHALLENGE_ID;
         if (isQuest && !p.quest) return fail('SCHEMA_INVALID', 'Daily Quest sessions need a quest template');
-        const version = await t.one<{ definition_hash: string }>('SELECT definition_hash FROM challenge_versions WHERE challenge_id = $1 AND version = $2', [p.challengeId, isQuest ? 1 : p.challengeVersion]);
+        // Offline parties need no join either: the signed invite travels in SessionStarted (ADR-033).
+        const isParty = p.challengeId === PARTY_CHALLENGE_ID;
+        if (isParty && !p.party) return fail('SCHEMA_INVALID', 'Party sessions need the party invite');
+        const anchored = isQuest || isParty;
+        const version = await t.one<{ definition_hash: string }>('SELECT definition_hash FROM challenge_versions WHERE challenge_id = $1 AND version = $2', [p.challengeId, anchored ? 1 : p.challengeVersion]);
         if (!version) return fail('CHALLENGE_UNKNOWN', 'Unknown challenge version');
-        const part = isQuest
+        const part = anchored
           ? { team_id: null, status: 'joined' }
           : await t.one<{ team_id: string | null; status: string }>('SELECT team_id, status FROM challenge_participants WHERE challenge_id = $1 AND user_id = $2', [p.challengeId, userId]);
         if (!part) return fail('NOT_PARTICIPANT', 'Join the challenge first');
         await t.query(
           `INSERT INTO activity_sessions (id, challenge_id, challenge_version, user_id, device_id, team_id, started_at_client, clock_offset_ms_at_download)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [group.sessionId, p.challengeId, isQuest ? 1 : p.challengeVersion, userId, body.deviceId, part.team_id, start.clientTs, p.clockOffsetMsAtDownload],
+          [group.sessionId, p.challengeId, anchored ? 1 : p.challengeVersion, userId, body.deviceId, part.team_id, start.clientTs, p.clockOffsetMsAtDownload],
         );
+        if (isParty && p.party) await registerPartySession(t, group.sessionId, userId, p.party);
         if (part.status !== 'joined') await anomaly(t, group.sessionId, 'PARTICIPANT_WITHDRAWN', {});
         session = { id: group.sessionId, user_id: userId, challenge_id: p.challengeId, last_contiguous_seq: 0, final_seq: null };
       } else if (session.user_id !== userId) {
@@ -215,4 +220,24 @@ export async function maybeEnqueueValidation(ctx: AppContext, sessionId: string,
   }
   await ctx.jobs.enqueue('validate-session', { sessionId }, { singletonKey: `validate:${sessionId}` });
   return true;
+}
+
+/**
+ * Records a party session (ADR-033). The first session to sync creates the party row; a later session
+ * carrying a DIFFERENT invite for the same party id, a wrong host role or an over-full party is
+ * recorded as an anomaly for validation (flag, don't reject: the player's own data is still kept).
+ */
+async function registerPartySession(t: Db, sessionId: string, userId: string, party: { invite: PartyInvite; role: 'host' | 'member' }) {
+  const inv = party.invite.body;
+  const hash = inviteHash(party.invite);
+  await t.query(
+    `INSERT INTO parties (id, invite_hash, host_user_id, spec) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
+    [inv.partyId, hash, inv.hostUserId, JSON.stringify(inv.spec)],
+  );
+  const row = await t.one<{ invite_hash: string }>('SELECT invite_hash FROM parties WHERE id = $1', [inv.partyId]);
+  if (row && row.invite_hash !== hash) await anomaly(t, sessionId, 'PARTY_INVITE_CONFLICT', { partyId: inv.partyId });
+  if ((party.role === 'host') !== (userId === inv.hostUserId)) await anomaly(t, sessionId, 'PARTY_ROLE_INVALID', { role: party.role });
+  await t.query(`INSERT INTO party_members (session_id, party_id, user_id, role) VALUES ($1, $2, $3, $4) ON CONFLICT (session_id) DO NOTHING`, [sessionId, inv.partyId, userId, party.role]);
+  const n = await t.one<{ n: string }>('SELECT count(DISTINCT user_id) AS n FROM party_members WHERE party_id = $1', [inv.partyId]);
+  if (Number(n?.n ?? 0) > PARTY_MAX_MEMBERS) await anomaly(t, sessionId, 'PARTY_FULL', { members: Number(n?.n) });
 }

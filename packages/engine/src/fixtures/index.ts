@@ -308,6 +308,12 @@ export class SessionBuilder {
   get now() {
     return this.mono;
   }
+
+  /** Chain head and seq of the last sealed event (for party sightings and summaries). */
+  get head(): { seq: number; chainHead: string } {
+    this.flush();
+    return { seq: this.seq, chainHead: this.prevHash };
+  }
 }
 
 /** Deterministic fake SHA-256 hex for tests. */

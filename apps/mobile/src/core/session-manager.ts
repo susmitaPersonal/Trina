@@ -4,16 +4,21 @@ import {
   EVENT_SCHEMA_VERSION,
   genesisHash,
   uuidv7,
+  verifyInvite,
   type ActivityEvent,
   type EventType,
   type Fix,
   type LocationSample,
+  type PartyInvite,
   type PayloadOf,
 } from '@trina/contracts';
 import {
+  buildPartyDefinition,
   buildQuestDefinition,
   compileOrThrow,
   DAILY_QUEST_CHALLENGE_ID,
+  inCircle,
+  PARTY_CHALLENGE_ID,
   ENGINE_VERSION,
   evaluate,
   fold,
@@ -52,7 +57,7 @@ export type LiveSnapshot = {
 type SessionRow = {
   id: string; challenge_id: string; challenge_version: number; user_id: string; status: string; started_wall: string;
   last_seq: number; chain_head: string; last_mono: number; last_wall_ms: number; wellness_json: string | null;
-  quest_json?: string | null; quest_definition_json?: string | null;
+  quest_json?: string | null; quest_definition_json?: string | null; party_json?: string | null;
 };
 
 /** Encouragement for quests (no server bundle): short, warm, never shaming. */
@@ -93,11 +98,12 @@ export class SessionManager {
       if (!q) {
         const compiled = compileOrThrow(JSON.parse(r.quest_definition_json));
         const hash = definitionHash(compiled.definition);
+        const anchorId = r.party_json ? PARTY_CHALLENGE_ID : DAILY_QUEST_CHALLENGE_ID;
         const challenge: StoredChallenge = {
-          id: DAILY_QUEST_CHALLENGE_ID, version: 1, title: compiled.definition.meta.title, definitionHash: hash, maxScore: compiled.maxScore,
+          id: anchorId, version: 1, title: compiled.definition.meta.title, definitionHash: hash, maxScore: compiled.maxScore,
           engineMinVersion: ENGINE_VERSION, teamId: null, clockOffsetMs: 0, downloadedAt: r.started_wall, stale: false,
           bundle: {
-            challengeId: DAILY_QUEST_CHALLENGE_ID, version: 1, definition: compiled.definition, definitionHash: hash, engineMinVersion: ENGINE_VERSION, maxScore: compiled.maxScore,
+            challengeId: anchorId, version: 1, definition: compiled.definition, definitionHash: hash, engineMinVersion: ENGINE_VERSION, maxScore: compiled.maxScore,
             mapPack: null, ruleText: renderRules(compiled), encouragement: QUEST_LINES, participation: { teamId: null, joinedVersion: 1 }, serverTime: r.started_wall, modules: [], participantKeys: [],
           },
         };
@@ -115,8 +121,8 @@ export class SessionManager {
   async activeQuestId(): Promise<string | null> {
     const id = await this.activeSessionId();
     if (!id) return null;
-    const r = await this.db.get<{ quest_json: string | null }>('SELECT quest_json FROM sessions WHERE id = ?', [id]);
-    return r?.quest_json ? id : null;
+    const r = await this.db.get<{ quest_json: string | null; party_json: string | null }>('SELECT quest_json, party_json FROM sessions WHERE id = ?', [id]);
+    return r?.quest_json || r?.party_json ? id : null;
   }
 
   /**
@@ -145,6 +151,55 @@ export class SessionManager {
       await t.run(`INSERT INTO meta (key, value) VALUES ('active_session_id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [sessionId]);
     });
     return sessionId;
+  }
+
+  /**
+   * Starts an Offline Party session (ADR-033). Every phone rebuilds the definition from the host's
+   * signed invite and gets the same hash; party play follows Offline Quest Mode (internet off, the
+   * QuestGuard blocks all calls). The player must be standing at the host's start point.
+   */
+  async startParty(args: { invite: PartyInvite; role: 'host' | 'member'; startFix: Fix; online: boolean; bootId?: string }): Promise<string> {
+    if (await this.activeSessionId()) throw new SessionError('Another challenge is already in progress');
+    if (args.online) throw new SessionError('Turn off mobile data and Wi-Fi to start the party');
+    if (!verifyInvite(args.invite)) throw new SessionError("This invite can't be verified");
+    const inv = args.invite.body;
+    if ((args.role === 'host') !== (inv.hostUserId === this.ids.userId)) throw new SessionError(args.role === 'host' ? 'Only the host can start as host' : "You can't join your own party");
+    const compiled = compileOrThrow(buildPartyDefinition(inv.spec, inv.startFix));
+    if (!inCircle([args.startFix.lng, args.startFix.lat], args.startFix.acc, compiled.definition.area.startZone, 100, 50)) {
+      throw new SessionError('Stand next to the host to start');
+    }
+    const hash = definitionHash(compiled.definition);
+    const sessionId = uuidv7(this.clock.wallNow());
+    const clock = new SessionClock(this.clock, 0, 0);
+    this.clocks.set(sessionId, clock);
+    await this.db.tx(async (t) => {
+      await t.run(
+        `INSERT INTO sessions (id, challenge_id, challenge_version, user_id, status, started_wall, boot_id, clock_offset_ms, last_seq, chain_head, last_mono, last_wall_ms, created_at, quest_definition_json, party_json)
+         VALUES (?, ?, 1, ?, 'active', ?, ?, 0, 0, ?, 0, ?, ?, ?, ?)`,
+        [sessionId, PARTY_CHALLENGE_ID, this.ids.userId, clock.wallIso(), args.bootId ?? 'unknown', genesisHash(sessionId), this.clock.wallNow(), clock.wallIso(), JSON.stringify(compiled.definition), JSON.stringify({ invite: args.invite, role: args.role })],
+      );
+      await this.appendIn(t, sessionId, 'SessionStarted', {
+        challengeId: PARTY_CHALLENGE_ID, challengeVersion: 1, definitionHash: hash, deviceId: this.ids.deviceId, userId: this.ids.userId, teamId: null,
+        bootId: (args.bootId ?? 'unknown').slice(0, 64), clockOffsetMsAtDownload: 0, startFix: args.startFix, tzOffsetMin: this.tz(), party: { invite: args.invite, role: args.role },
+      }, 0);
+      await this.appendIn(t, sessionId, 'ConnectivityChanged', { online: false, transport: 'none' }, 0);
+      await t.run(`INSERT INTO meta (key, value) VALUES ('active_session_id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [sessionId]);
+    });
+    return sessionId;
+  }
+
+  /** The party of a session, or null. */
+  async partyOf(sessionId: string): Promise<{ invite: PartyInvite; role: 'host' | 'member'; status: string } | null> {
+    const r = await this.db.get<{ party_json: string | null; status: string }>('SELECT party_json, status FROM sessions WHERE id = ?', [sessionId]);
+    return r?.party_json ? { ...JSON.parse(r.party_json), status: r.status } : null;
+  }
+
+  /** Sequence and hash of the last sealed event (GPS flushed first), for party sightings and summaries. */
+  async head(sessionId: string): Promise<{ seq: number; chainHead: string }> {
+    await this.sessionClock(sessionId);
+    await this.flushLocations(sessionId, true);
+    const r = await this.row(this.db, sessionId);
+    return { seq: Number(r.last_seq), chainHead: r.chain_head };
   }
 
   /** Records a connectivity change (only when it actually changes). */

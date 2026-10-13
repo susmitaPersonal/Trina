@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Fix, Id, IsoDateTime, Sha256Hex } from './common';
 import { ConfirmationClaims, ConfirmationRole, PublicKeyHex, SignatureHex } from './confirmation';
+import { PartyInvite, SightingToken } from './party';
 
 export const EVENT_SCHEMA_VERSION = 1 as const;
 
@@ -42,6 +43,8 @@ const payloads = {
       .object({ templateId: z.string().regex(/^[a-z][a-z0-9_]{1,31}$/), targetMinutes: z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(90)]), levelTier: z.enum(['easy', 'medium', 'hard']) })
       .nullable()
       .optional(),
+    /** Set for Offline Party sessions: the signed invite, so the server can verify it and rebuild the definition (ADR-033). */
+    party: z.object({ invite: PartyInvite, role: z.enum(['host', 'member']) }).nullable().optional(),
   }),
   LocationBatch: z.object({ samples: z.array(LocationSample).min(1).max(200) }),
   GpsSignalLost: z.object({}),
@@ -114,6 +117,16 @@ const payloads = {
     kind: z.enum(['force', 'safety']),
     reason: z.enum(['unwell', 'weather', 'emergency', 'need_phone', 'other']).nullable(),
   }),
+  /**
+   * Two phones in one party met (QR handshake, ADR-034). `peer` is the other side's signed token, so this
+   * chain now records the peer's chain head; `myNonce` is the nonce this phone showed. No coordinates.
+   */
+  PeerSighting: z.object({
+    sightingId: Id,
+    kind: z.enum(['join', 'checkpoint', 'wrapup']),
+    peer: SightingToken,
+    myNonce: z.string().regex(/^[0-9a-f]{16}$/),
+  }),
 } as const;
 
 export type EventType = keyof typeof payloads;
@@ -163,6 +176,7 @@ export const ActivityEvent = z.discriminatedUnion('type', [
   eventVariant('ConfirmationReceived'),
   eventVariant('ConnectivityChanged'),
   eventVariant('QuestStopped'),
+  eventVariant('PeerSighting'),
 ]);
 export type ActivityEvent = z.infer<typeof ActivityEvent>;
 export type EventOf<T extends EventType> = Extract<ActivityEvent, { type: T }>;

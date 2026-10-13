@@ -551,4 +551,34 @@ INSERT INTO challenge_versions (challenge_id, version, definition, definition_ha
   ON CONFLICT DO NOTHING;
 `,
   },
+  {
+    id: 4,
+    sql: `
+-- Offline Party Mode (ADR-033/034, docs/architecture/offline-party-mode.md). Parties are created by sync
+-- from the signed invite in SessionStarted; no coordinates are stored here (the spec is enums only).
+CREATE TABLE parties (
+  id UUID PRIMARY KEY,
+  invite_hash TEXT NOT NULL,
+  host_user_id UUID NOT NULL,
+  spec JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE party_members (
+  session_id UUID PRIMARY KEY,
+  party_id UUID NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('host', 'member')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX party_members_party_idx ON party_members (party_id);
+
+-- The well-known Party challenge: anchors party sessions like the Daily Quest row (never listed or joinable).
+INSERT INTO challenges (id, creator_id, status, visibility, title, current_version, published_version, start_lng, start_lat, difficulty, module_ids, duration_min, max_participants)
+  VALUES ('0192d41e-0000-7000-8000-000000000002', '0192d41e-0000-7000-8000-00000000c0de', 'archived', 'private', 'Offline Party', 1, 1, 0, 0, 'easy', '{walking}', 105, 1)
+  ON CONFLICT DO NOTHING;
+INSERT INTO challenge_versions (challenge_id, version, definition, definition_hash, max_score, engine_min_version, created_by)
+  VALUES ('0192d41e-0000-7000-8000-000000000002', 1, '{"kind":"party-anchor"}', 'party', 0, 2, '0192d41e-0000-7000-8000-00000000c0de')
+  ON CONFLICT DO NOTHING;
+`,
+  },
 ];

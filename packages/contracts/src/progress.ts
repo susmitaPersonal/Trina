@@ -56,6 +56,9 @@ export type ProgressDto = z.infer<typeof ProgressDto>;
 export const DailyQuestDto = z.object({
   dayKey: z.string(),
   levelTier: z.enum(['easy', 'medium', 'hard']),
+  /** Suggested length from the adaptive ladder (ADR-032); the player may pick any length up to their rank cap. */
+  targetReason: z.enum(['start', 'welcome_back', 'step_up', 'step_down', 'stay', 'rank_cap']).optional(),
+  maxMinutes: z.int().optional(),
   targetMinutes: z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(90)]),
   quests: z.array(z.object({ key: z.string(), title: z.string(), stat: Stat })),
 });

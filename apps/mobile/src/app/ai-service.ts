@@ -1,5 +1,5 @@
-import { createDraft, finalizeDraft, recap, shiftDifficulty, templateRecap, TemplateProvider, type RecapFacts } from '@trina/ai';
-import type { ChallengeDefinitionInput, ChallengeIntent, CompileIssue, LngLat } from '@trina/contracts';
+import { createDraft, finalizeDraft, recap, shiftDifficulty, suggestTheme, templateRecap, TemplateProvider, type RecapFacts } from '@trina/ai';
+import type { ChallengeDefinitionInput, ChallengeIntent, CompileIssue, LngLat, PartyTemplateId, QuestThemeIntent } from '@trina/contracts';
 import { LlamaRnProvider } from '../platform/llama';
 import { getServices } from './services';
 
@@ -86,4 +86,13 @@ export async function recapFor(sessionId: string, facts: RecapFacts): Promise<st
     }
   }
   return templateRecap(facts);
+}
+
+/**
+ * Party theme (ADR-032): on-device model if installed, else rules. Never the network: the host is
+ * usually about to go offline. The result is an enum; it changes words, never numbers.
+ */
+export async function partyTheme(text: string, templateId: PartyTemplateId): Promise<QuestThemeIntent & { provider: string }> {
+  const device = await getDeviceProvider().catch(() => null);
+  return suggestTheme(device ?? new TemplateProvider(), text, { templateId });
 }

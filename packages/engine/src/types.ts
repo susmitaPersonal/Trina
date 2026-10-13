@@ -173,6 +173,10 @@ export type SessionState = {
   /** Local UTC offset recorded at start (minutes); null for old apps. */
   tzOffsetMin: number | null;
   quest: { templateId: string; targetMinutes: number; levelTier: 'easy' | 'medium' | 'hard' } | null;
+  /** Offline Party session (ADR-033): party id and this player's role. */
+  party: { partyId: string; role: 'host' | 'member' } | null;
+  /** Peer sightings recorded in this chain (ADR-034); the server matches them across chains. */
+  sightings: number;
   /** Connectivity: null = never reported. */
   online: boolean | null;
   offlineSinceMono: number | null;

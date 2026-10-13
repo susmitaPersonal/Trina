@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "eval": "tsx evals/run.ts && tsx evals/run-modules.ts"
+    "eval": "tsx evals/run.ts && tsx evals/run-modules.ts && tsx evals/run-themes.ts"
   },
   "dependencies": {
     "@trina/contracts": "workspace:*",

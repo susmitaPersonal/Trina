@@ -11,6 +11,7 @@ import { sessionsRouter, syncRouter } from './modules/sync/routes';
 import { usersRouter } from './modules/users/routes';
 import { dataModulesRouter, moderationRouter } from './modules/datamodules/routes';
 import { guildsRouter } from './modules/guilds/routes';
+import { partiesRouter } from './modules/parties/routes';
 import { progressRouter } from './modules/progress/routes';
 import { registerJobs } from './modules/validation/jobs';
 import type { Config } from './config';
@@ -74,6 +75,7 @@ export function createApp(ctx: AppContext): Express {
   app.use('/v1', dataModulesRouter(ctx));
   app.use('/v1', progressRouter(ctx));
   app.use('/v1', guildsRouter(ctx));
+  app.use('/v1', partiesRouter(ctx));
 
   app.use((_req, _res, next) => next(notFound('Route')));
   app.use(errorHandler(ctx.logger));

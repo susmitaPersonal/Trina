@@ -208,7 +208,7 @@ export function Meadow({ offlineMinutes, flowers, height = 90 }: { offlineMinute
 /* ------------------------------ QR code ------------------------------ */
 
 /** Renders a QR code as SVG squares (no native module; works on Android and iOS). */
-export function QrCode({ value, size = 240 }: { value: string; size?: number }) {
+export function QrCode({ value, size = 240, label = 'Confirmation QR code' }: { value: string; size?: number; label?: string }) {
   const t = useTheme();
   const cells = useMemo(() => {
     const qr = qrcode(0, 'M');
@@ -222,7 +222,7 @@ export function QrCode({ value, size = 240 }: { value: string; size?: number }) 
   const quiet = 4;
   const total = cells.n + quiet * 2;
   return (
-    <View accessibilityLabel="Confirmation QR code" style={{ alignSelf: 'center', backgroundColor: '#fff', padding: space.s, borderRadius: radius.m }}>
+    <View accessibilityLabel={label} style={{ alignSelf: 'center', backgroundColor: '#fff', padding: space.s, borderRadius: radius.m }}>
       <Svg width={size} height={size} viewBox={`0 0 ${total} ${total}`}>
         <Rect x={0} y={0} width={total} height={total} fill="#ffffff" />
         {cells.on.map(([r, c]) => (

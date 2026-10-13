@@ -14,6 +14,7 @@ import { ConfirmScreen } from '../screens/confirm';
 import { GuildsScreen } from '../screens/guilds';
 import { MilestoneDetailScreen, MilestoneHistoryScreen, StatusScreen } from '../screens/milestones';
 import { ModuleBuilderScreen, ModuleDetailScreen } from '../screens/modules';
+import { PartyHostScreen, PartyJoinScreen, PartyPlayScreen, PartyScreen } from '../screens/party';
 import { QuestStartScreen, TodayScreen } from '../screens/quests';
 import { useApp } from './store';
 
@@ -39,7 +40,7 @@ export type RootParams = {
   History: undefined;
   SyncStatus: undefined;
   AIModel: undefined;
-  QuestStart: { targetMinutes?: number } | undefined;
+  QuestStart: { targetMinutes?: number; maxMinutes?: number } | undefined;
   Status: undefined;
   MilestoneHistory: undefined;
   MilestoneDetail: { key: string; windowKey: string };
@@ -47,6 +48,10 @@ export type RootParams = {
   ModuleDetail: { id: string; version: number };
   Confirm: { sessionId: string; mode: 'ask' | 'scan' };
   Guilds: undefined;
+  Party: undefined;
+  PartyHost: undefined;
+  PartyJoin: undefined;
+  PartyPlay: { sessionId: string; meetFirst?: boolean };
 };
 
 const Stack = createNativeStackNavigator<RootParams>();
@@ -109,6 +114,10 @@ export function RootNavigator({ resumeSessionId }: { resumeSessionId: string | n
           <Stack.Screen name="ModuleDetail" component={ModuleDetailScreen} />
           <Stack.Screen name="Confirm" component={ConfirmScreen} options={{ ...activity, presentation: 'modal' }} />
           <Stack.Screen name="Guilds" component={GuildsScreen} />
+          <Stack.Screen name="Party" component={PartyScreen} />
+          <Stack.Screen name="PartyHost" component={PartyHostScreen} />
+          <Stack.Screen name="PartyJoin" component={PartyJoinScreen} />
+          <Stack.Screen name="PartyPlay" component={PartyPlayScreen} options={activity} />
         </>
       )}
     </Stack.Navigator>

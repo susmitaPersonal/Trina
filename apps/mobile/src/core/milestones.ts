@@ -4,8 +4,11 @@ import {
   dayKeyOf,
   defaultRegistry,
   ENGINE_VERSION,
+  adaptQuest,
   evaluateMilestones,
   levelTierForRank,
+  RANK_MAX_MINUTES,
+  type AdaptReason,
   pickDailyQuests,
   progression,
   unlocksOf,
@@ -236,18 +239,23 @@ export class MilestoneService {
   }
 
   /** Today's Daily Quests with progress (the same picks as GET /v1/me/quests, computed offline). */
-  async dailyQuests(): Promise<{ dayKey: string; levelTier: string; targetMinutes: number; quests: Array<{ key: string; title: string; stat: string; value: number; target: number; done: boolean; status: MilestoneStatus | null }> }> {
+  async dailyQuests(): Promise<{ dayKey: string; levelTier: string; targetMinutes: number; targetReason: AdaptReason; maxMinutes: number; quests: Array<{ key: string; title: string; stat: string; value: number; target: number; done: boolean; status: MilestoneStatus | null }> }> {
     const summaries = await this.provisionalSummaries();
     const day = this.todayKey(summaries);
     const { server } = await this.progress();
-    const level = levelTierForRank(server?.rank ?? 'E');
+    const rank = server?.rank ?? 'E';
+    const level = levelTierForRank(rank);
+    // Adaptive length (ADR-032): this phone's own (provisional) quest history; the server agrees after sync.
+    const adapted = adaptQuest(summaries, { rank, todayKey: day });
     const progress = evaluateMilestones(await this.catalog(), summaries, { mode: 'provisional' });
     const rows = await this.all();
     const byId = new Map(GENERIC_MILESTONES.map((m) => [m.id, m]));
     return {
       dayKey: day,
       levelTier: level.levelTier,
-      targetMinutes: level.targetMinutes,
+      targetMinutes: adapted.targetMinutes,
+      targetReason: adapted.reason,
+      maxMinutes: RANK_MAX_MINUTES[rank],
       quests: pickDailyQuests(this.opts.userId, day).map((id) => {
         const key = `*@1:${id}`;
         const def = byId.get(id)!;

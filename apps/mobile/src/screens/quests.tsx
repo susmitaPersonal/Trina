@@ -52,7 +52,9 @@ export function TodayScreen() {
             <T muted v="small">{q.done ? (q.status === 'final' ? 'confirmed' : 'provisional') : `${fmtValue(q.key, q.value)} / ${fmtValue(q.key, q.target)}`}</T>
           </Row>
         ))}
-        <Btn title={`Start a ${quests?.targetMinutes ?? 30}-min offline quest`} icon="🌱" onPress={() => nav.navigate('QuestStart', { targetMinutes: quests?.targetMinutes ?? 30 })} />
+        <Btn title={`Start a ${quests?.targetMinutes ?? 30}-min offline quest`} icon="🌱" onPress={() => nav.navigate('QuestStart', { targetMinutes: quests?.targetMinutes ?? 30, maxMinutes: quests?.maxMinutes })} />
+        {quests?.targetReason ? <T v="small" muted>{ADAPT_COPY[quests.targetReason]}</T> : null}
+        <Btn title="Offline party with friends" icon="🎉" kind="secondary" onPress={() => nav.navigate('Party')} />
         <T v="small" muted>Resets at 4 am. Rest days are part of it.</T>
       </Card>
       <Card>
@@ -87,6 +89,16 @@ export function TodayScreen() {
 }
 
 const LENGTHS = [30, 45, 60, 90] as const;
+
+/** Why today's suggested length (adaptive ladder, ADR-032). Never shaming. */
+export const ADAPT_COPY: Record<string, string> = {
+  start: 'Start small: 30 minutes.',
+  welcome_back: 'Welcome back! An easy 30 minutes to start again.',
+  step_up: 'Three quests done at this length. Ready for a bit more?',
+  step_down: 'A shorter quest this time. Every minute outside counts.',
+  stay: 'Same length as last time.',
+  rank_cap: "You're at the longest quest for your rank. Longer ones unlock as you grow.",
+};
 
 /**
  * Quest start (design §5A.3): sync own data first, then ask the player to go offline (mobile data AND
@@ -156,7 +168,7 @@ export function QuestStartScreen({ route, navigation }: NativeStackScreenProps<R
         <T v="h2">🌱 {target}-minute offline quest</T>
         <T>Internet off, phone in pocket, go outside. Your time outside counts when you finish.</T>
         <Row>
-          {LENGTHS.map((m) => (
+          {LENGTHS.filter((m) => m <= (route.params?.maxMinutes ?? 90)).map((m) => (
             <Chip key={m} label={`${m} min`} selected={target === m} onPress={() => setTarget(m)} />
           ))}
         </Row>

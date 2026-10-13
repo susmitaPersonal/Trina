@@ -107,6 +107,22 @@ ALTER TABLE sessions ADD COLUMN quest_json TEXT;
 ALTER TABLE sessions ADD COLUMN quest_definition_json TEXT;
 `,
   },
+  {
+    id: 3,
+    sql: `
+-- Offline Party Mode (ADR-033/034). party_json = {invite, role}; summaries are gossip (derived, not events).
+ALTER TABLE sessions ADD COLUMN party_json TEXT;
+CREATE TABLE IF NOT EXISTS party_offers (
+  nonce TEXT PRIMARY KEY, session_id TEXT NOT NULL, created_at TEXT NOT NULL, used INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS party_answers (
+  peer_nonce TEXT PRIMARY KEY, session_id TEXT NOT NULL, frames_json TEXT NOT NULL, peer_name TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS party_summaries (
+  party_id TEXT NOT NULL, user_id TEXT NOT NULL, json TEXT NOT NULL, PRIMARY KEY (party_id, user_id)
+);
+`,
+  },
 ];
 
 export async function migrateLocal(db: SqlDb): Promise<void> {

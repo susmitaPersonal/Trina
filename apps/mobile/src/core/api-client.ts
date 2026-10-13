@@ -269,6 +269,14 @@ export class ApiClient {
   myQuests = () => this.request<DailyQuestDto>('GET', '/v1/me/quests');
   registerDeviceKey = (publicKey: string) => this.request<void>('PUT', '/v1/me/devices/current/key', { publicKey });
 
+  /** Offline party (ADR-033): members only; the goal counts verified sessions. */
+  party = (partyId: string) =>
+    this.request<{
+      partyId: string;
+      members: Array<{ userId: string; displayName: string; role: 'host' | 'member'; verdict: string; verified: boolean; goalValue: number | null; done: boolean }>;
+      goal: { members: number; total: number; target: number; reached: boolean; membersDone: number; label: string; pending: number };
+    }>('GET', `/v1/parties/${partyId}`);
+
   /* --------------------------------- Guilds -------------------------------- */
   myGuilds = () => this.request<{ items: Array<{ id: string; name: string; icon: string; role: string; members: number }> }>('GET', '/v1/me/guilds');
   createGuild = (name: string, description = '') => this.request<{ id: string; name: string }>('POST', '/v1/guilds', { name, description });

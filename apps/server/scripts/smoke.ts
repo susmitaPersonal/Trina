@@ -8,8 +8,8 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { computeEventHash, definitionHash, uuidv7, type ActivityEvent } from '@trina/contracts';
-import { buildQuestDefinition, challengeFromModule, compileModuleOrThrow, compileOrThrow, DAILY_QUEST_CHALLENGE_ID } from '@trina/engine';
+import { computeEventHash, definitionHash, generateDeviceKeyPair, newNonce, signParty, uuidv7, type ActivityEvent, type PartyInvite, type SightingToken } from '@trina/contracts';
+import { buildPartyDefinition, buildQuestDefinition, challengeFromModule, compileModuleOrThrow, compileOrThrow, DAILY_QUEST_CHALLENGE_ID, PARTY_CHALLENGE_ID } from '@trina/engine';
 import { DEMO_CENTER, SessionBuilder, greenSprintCleanRun } from '@trina/engine/fixtures';
 import sharp from 'sharp';
 
@@ -193,6 +193,55 @@ async function main() {
   }, 'quest milestone');
   const prog2 = (await http('GET', '/v1/me/progress', undefined, token)).body;
   ok(`offline Daily Quest (no join, rebuilt on the server) verified → "Finish a 30-min offline quest" unlocked; ${prog2.offlineQuestMinutes} offline min, ${prog2.xp} XP (${qms.length} milestones)`);
+
+  // 20. Offline party (ADR-033/034): two new players, signed QR invite + two-sided sightings, synced separately.
+  const players = await Promise.all(['Party Host', 'Party Member'].map(async (name) => {
+    const device = { id: uuidv7(), platform: 'test', appVersion: 'smoke' };
+    const r = await http('POST', '/v1/auth/register', { email: `smoke-party-${uuidv7()}@trina.dev`, password: 'correct horse battery', displayName: name, ageConfirmed: true, device });
+    if (r.status !== 201) fail(`party register ${r.status}`);
+    const keys = generateDeviceKeyPair();
+    if ((await http('PUT', '/v1/me/devices/current/key', { publicKey: keys.publicKeyHex }, r.body.accessToken)).status !== 204) fail('device key');
+    return { name, device, keys, token: r.body.accessToken as string, userId: r.body.user.id as string };
+  }));
+  const [ph, pm] = players as [(typeof players)[number], (typeof players)[number]];
+  const pspec = { v: 1 as const, templateId: 'party_outside_v1' as const, targetMinutes: 30 as const, levelTier: 'easy' as const, themeId: 'park_explorers' as const };
+  const ibody = { partyId: uuidv7(), spec: pspec, startFix: DEMO_CENTER, hostUserId: ph.userId, hostDeviceId: ph.device.id, hostName: ph.name, hostPublicKey: ph.keys.publicKeyHex, createdAt: new Date().toISOString() };
+  const invite: PartyInvite = { t: 'pinv', body: ibody, sig: signParty('invite', ibody, ph.keys.secretKeyHex) };
+  const phash = definitionHash(compileOrThrow(buildPartyDefinition(pspec, DEMO_CENTER)).definition);
+  const pts = new Date(Date.now() - 60 * 60_000).toISOString();
+  const sessions = [ph, pm].map((p, i) => {
+    const b = new SessionBuilder({ challengeId: PARTY_CHALLENGE_ID, definitionHash: phash, userId: p.userId, deviceId: p.device.id, start: DEMO_CENTER, startTs: pts });
+    b.emit('SessionStarted', {
+      challengeId: PARTY_CHALLENGE_ID, challengeVersion: 1, definitionHash: phash, deviceId: p.device.id, userId: p.userId, teamId: null, bootId: 'smoke', clockOffsetMsAtDownload: 0,
+      startFix: { lat: DEMO_CENTER[1], lng: DEMO_CENTER[0], acc: 6, ts: pts }, tzOffsetMin: 330, party: { invite, role: i === 0 ? 'host' : 'member' },
+    });
+    return { p, b };
+  });
+  const tok = (x: (typeof sessions)[number], replyTo: string | null): SightingToken => {
+    const { seq, chainHead } = x.b.head;
+    const body = { partyId: ibody.partyId, userId: x.p.userId, deviceId: x.p.device.id, sessionId: x.b.sessionId, name: x.p.name, publicKey: x.p.keys.publicKeyHex, seq, chainHead, nonce: newNonce(), replyTo };
+    return { t: 'psig', body, sig: signParty('sighting', body, x.p.keys.secretKeyHex) };
+  };
+  const [sh, sm2] = sessions as [(typeof sessions)[number], (typeof sessions)[number]];
+  for (const kind of ['join', 'wrapup'] as const) {
+    if (kind === 'wrapup') for (const x of sessions) x.b.emit('ConnectivityChanged', { online: false, transport: 'none' }).wait(31 * 60, 30);
+    const ta = tok(sh, null);
+    const tb = tok(sm2, ta.body.nonce);
+    sm2.b.emit('PeerSighting', { sightingId: uuidv7(), kind, peer: ta, myNonce: tb.body.nonce });
+    sh.b.emit('PeerSighting', { sightingId: uuidv7(), kind, peer: tb, myNonce: ta.body.nonce });
+  }
+  for (const x of sessions) {
+    const evs = x.b.complete().build();
+    const r = await http('POST', '/v1/sync/push', { protocolVersion: 1, deviceId: x.p.device.id, batchId: uuidv7(), sessions: [{ sessionId: x.b.sessionId, events: evs }] }, x.p.token);
+    if (r.body.results?.[0]?.ackedThroughSeq !== evs.length) fail(`party push ${JSON.stringify(r.body)}`);
+  }
+  for (const x of sessions) await waitFor(async () => (await http('GET', `/v1/sessions/${x.b.sessionId}`, undefined, x.p.token)).body.verdict === 'verified', 'party verdict');
+  const party = await waitFor(async () => {
+    const r = (await http('GET', `/v1/parties/${ibody.partyId}`, undefined, pm.token)).body;
+    return r?.goal?.reached ? r : null;
+  }, 'party goal');
+  if ((await http('GET', `/v1/parties/${ibody.partyId}`, undefined, token)).status !== 404) fail('party visible to a non-member');
+  ok(`offline party (signed QR invite, 4 two-sided sightings, synced separately) → both verified; goal ${party.goal.total}/${party.goal.target} ${party.goal.label}; hidden from non-members`);
 
   console.log(`\n🎉 Smoke test passed: ${step} checks\n`);
 }

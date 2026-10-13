@@ -63,6 +63,10 @@ export type SessionSummary = {
   status: 'completed' | 'abandoned' | 'active';
   questStop: 'force' | 'safety' | null;
   isQuest: boolean;
+  /** Target minutes of an offline quest (adaptive ladder, ADR-032). Absent for older stored summaries. */
+  questTargetMin?: number;
+  /** Offline Party id (ADR-033). Absent when not a party session. */
+  partyId?: string;
   /** Final (server-validated) and counted. Provisional summaries are false. */
   verified: boolean;
 };
@@ -108,6 +112,8 @@ export function summarizeSession(compiled: CompiledChallenge, s: SessionState, c
     status: s.status === 'completed' ? 'completed' : s.status === 'abandoned' ? 'abandoned' : 'active',
     questStop: s.questStop,
     isQuest: s.quest !== null,
+    ...(s.quest ? { questTargetMin: s.quest.targetMinutes } : {}),
+    ...(s.party ? { partyId: s.party.partyId } : {}),
     verified: ctx.verified,
   };
 }

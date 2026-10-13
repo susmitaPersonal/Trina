@@ -106,7 +106,7 @@ export function lowerOnly(requested: ConfirmationClaim[], approved: Confirmation
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
-function b64urlEncode(bytes: Uint8Array): string {
+export function b64urlEncode(bytes: Uint8Array): string {
   let out = '';
   for (let i = 0; i < bytes.length; i += 3) {
     const n = (bytes[i]! << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
@@ -118,7 +118,7 @@ function b64urlEncode(bytes: Uint8Array): string {
 }
 
 /** Strict: one spelling per payload (unused trailing bits must be zero), so a changed character never decodes the same. */
-function b64urlDecode(s: string): Uint8Array {
+export function b64urlDecode(s: string): Uint8Array {
   if (!/^[A-Za-z0-9_-]*$/.test(s) || s.length % 4 === 1) throw new Error('Invalid QR payload');
   const last = B64.indexOf(s[s.length - 1] ?? 'A');
   if ((s.length % 4 === 2 && (last & 15) !== 0) || (s.length % 4 === 3 && (last & 3) !== 0)) throw new Error('Invalid QR payload');
@@ -134,7 +134,7 @@ function b64urlDecode(s: string): Uint8Array {
 }
 
 /** Pure UTF-8 decoder (TextDecoder is not available on every JS engine, e.g. older Hermes). */
-function utf8Decode(b: Uint8Array): string {
+export function utf8Decode(b: Uint8Array): string {
   let out = '';
   for (let i = 0; i < b.length; ) {
     const c = b[i++]!;

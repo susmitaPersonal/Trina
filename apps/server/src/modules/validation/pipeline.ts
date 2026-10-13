@@ -8,9 +8,13 @@ import {
   type ChallengeDefinition,
 } from '@trina/contracts';
 import {
+  buildPartyDefinition,
   buildQuestDefinition,
   compileOrThrow,
   DAILY_QUEST_CHALLENGE_ID,
+  haversineM,
+  PARTY_CHALLENGE_ID,
+  RANK_MAX_MINUTES,
   ENGINE_VERSION,
   evaluate,
   fold,
@@ -21,14 +25,18 @@ import {
   type CompiledChallenge,
   type EvaluateOptions,
 } from '@trina/engine';
-import { canonicalJson as canon, definitionHash, lowerOnly, verifyConfirmation, type ConfirmationClaim } from '@trina/contracts';
+import { canonicalJson as canon, definitionHash, lowerOnly, verifyConfirmation, verifyInvite, verifySighting, type ConfirmationClaim, type Rank } from '@trina/contracts';
 import { registryForDefinition } from '../datamodules/service';
 import type { AppContext } from '../../platform/context';
 import { rebuildLeaderboard } from '../scoring/leaderboard';
 import { FLAG_MESSAGES } from '../sync/sessions';
 
-/** 2: data modules, Claims stage (signed confirmations, counts), offline quest checks, session summaries. */
-export const PIPELINE_VERSION = 2;
+/** 2: data modules, Claims stage (signed confirmations, counts), offline quest checks, session summaries. 3: Party stage (ADR-033/034). */
+export const PIPELINE_VERSION = 3;
+/** Two phones that sighted each other must have been within this distance (+ both accuracies). */
+export const SIGHTING_MAX_M = 75;
+/** A fix counts for a sighting only if it is this close in time to it. */
+const SIGHTING_FIX_WINDOW_MS = 2 * 60_000;
 export const CONFIRM_MIN_OVERLAP_MS = 10 * 60_000;
 export const CONFIRMS_PER_DAY = 30;
 export const RECIPROCAL_LIMIT = 3;
@@ -76,6 +84,7 @@ export async function validateSession(ctx: AppContext, sessionId: string): Promi
   );
   if (!challenge || !version) return null;
   const isQuest = s.challenge_id === DAILY_QUEST_CHALLENGE_ID;
+  const isParty = s.challenge_id === PARTY_CHALLENGE_ID;
   const rows = await ctx.db.query<EventRow>('SELECT * FROM activity_events WHERE session_id = $1 ORDER BY seq', [sessionId]);
   const events = rows.map(toEvent);
   const flags: Flag[] = [];
@@ -102,7 +111,7 @@ export async function validateSession(ctx: AppContext, sessionId: string): Promi
   );
   for (const a of anomalies) {
     const code = a.details.code;
-    const severity: Severity = code === 'PARTICIPANT_WITHDRAWN' || code === 'EVIDENCE_ID_REUSED' ? 'warn' : 'critical';
+    const severity: Severity = code === 'PARTICIPANT_WITHDRAWN' || code === 'EVIDENCE_ID_REUSED' || code === 'PARTY_FULL' ? 'warn' : 'critical';
     add(code, severity, a.details);
   }
   const start = events.find((e) => e.type === 'SessionStarted');
@@ -114,11 +123,21 @@ export async function validateSession(ctx: AppContext, sessionId: string): Promi
     if (!start.payload.quest) return null;
     compiled = compileOrThrow(buildQuestDefinition(start.payload.quest, [start.payload.startFix.lng, start.payload.startFix.lat]));
     expectedHash = definitionHash(compiled.definition);
+  } else if (isParty) {
+    // Party: the host's signed invite is the source of truth; rebuild exactly as every phone did (ADR-033).
+    const party = start.payload.party;
+    if (!party) return null;
+    const inv = party.invite.body;
+    if (!verifyInvite(party.invite)) add('PARTY_INVITE_INVALID', 'critical');
+    const hostKey = await ctx.db.one<{ public_key: string | null }>('SELECT public_key FROM devices WHERE id = $1 AND user_id = $2', [inv.hostDeviceId, inv.hostUserId]);
+    if (!hostKey || hostKey.public_key !== inv.hostPublicKey) add('PARTY_HOST_KEY_UNKNOWN', 'critical');
+    compiled = compileOrThrow(buildPartyDefinition(inv.spec, inv.startFix));
+    expectedHash = definitionHash(compiled.definition);
   } else {
     compiled = compileOrThrow(version.definition, await registryForDefinition(ctx.db, version.definition));
     expectedHash = version.definition_hash;
   }
-  if (start.payload.definitionHash !== expectedHash) add(isQuest ? 'QUEST_DEFINITION_MISMATCH' : 'DEFINITION_MISMATCH', 'critical');
+  if (start.payload.definitionHash !== expectedHash) add(isQuest ? 'QUEST_DEFINITION_MISMATCH' : isParty ? 'PARTY_DEFINITION_MISMATCH' : 'DEFINITION_MISMATCH', 'critical');
 
   /* ------------------------------ Temporal ----------------------------- */
   const offset = Number(s.clock_offset_ms_at_download ?? 0);
@@ -205,10 +224,16 @@ export async function validateSession(ctx: AppContext, sessionId: string): Promi
   const matched = await claimsStage(ctx, { s, sessionId, challengeCreator: challenge.creator_id, compiled, events, first, corrected, add });
   countsStage(compiled, events, add);
 
+  /* -------------------------------- Party ------------------------------- */
+  if (isParty && start.payload.party) await partyStage(ctx, { sessionId, userId: s.user_id, partyId: start.payload.party.invite.body.partyId, events, offsetMs: offset, add });
+
   /* ---------------------------- Offline quest --------------------------- */
   let onlineMono: Array<[number, number]> = [];
   if (isQuest) {
     if (!events.some((e) => e.type === 'ConnectivityChanged')) add('OFFLINE_UNRECORDED', 'warn');
+    // Adaptive ladder bounds (ADR-032): the length must be within the player's rank cap (rank never goes down).
+    const rank = (await ctx.db.one<{ rank: Rank }>('SELECT rank FROM user_progress WHERE user_id = $1', [s.user_id]))?.rank ?? 'E';
+    if (start.payload.quest && start.payload.quest.targetMinutes > RANK_MAX_MINUTES[rank]) add('QUEST_ADAPT_OUT_OF_BOUNDS', 'warn', { targetMinutes: start.payload.quest.targetMinutes, rank });
     const t0 = corrected(start.clientTs);
     const t1 = corrected(events[events.length - 1]!.clientTs);
     // Only whole minutes strictly inside the quest (the pre-sync and post-sync minutes are outside).
@@ -315,12 +340,25 @@ export async function validateSession(ctx: AppContext, sessionId: string): Promi
        verified = EXCLUDED.verified, engine_version = EXCLUDED.engine_version, updated_at = now()`,
     [sessionId, s.user_id, s.challenge_id, summary.dayKey, summary.weekKey, JSON.stringify(summary), summary.verified, ENGINE_VERSION],
   );
-  const affected = isQuest
+  const affected = isQuest || isParty
     ? [{ user_id: s.user_id }]
     : await ctx.db.query<{ user_id: string }>('SELECT DISTINCT user_id FROM session_summaries WHERE challenge_id = $1 AND day_key = $2', [s.challenge_id, summary.dayKey]);
   for (const u of affected) await ctx.jobs.enqueue('evaluate-milestones', { userId: u.user_id }, { singletonKey: `milestones:${u.user_id}` });
 
-  if (!isQuest) await rebuildLeaderboard(ctx, s.challenge_id);
+  if (!isQuest && !isParty) await rebuildLeaderboard(ctx, s.challenge_id);
+  // A later party member's sightings can change this verdict's neighbours (unmatched → matched, CHAIN_FORK):
+  // on a session's FIRST validation, re-validate the other party sessions once. Bounded: re-runs don't cascade.
+  if (isParty && start.payload.party) {
+    const runs = await ctx.db.one<{ n: string }>('SELECT count(*) AS n FROM validation_runs WHERE session_id = $1', [sessionId]);
+    if (Number(runs?.n ?? 0) === 1) {
+      const others = await ctx.db.query<{ session_id: string }>(
+        `SELECT pm.session_id FROM party_members pm JOIN validation_runs v ON v.session_id = pm.session_id
+         WHERE pm.party_id = $1 AND pm.session_id <> $2 GROUP BY pm.session_id`,
+        [start.payload.party.invite.body.partyId, sessionId],
+      );
+      for (const o of others) await ctx.jobs.enqueue('validate-session', { sessionId: o.session_id }, { singletonKey: `validate:${o.session_id}` });
+    }
+  }
   ctx.logger.info({ sessionId, verdict, total: result.total, flags: flags.length }, 'session validated');
   return { verdict, total: result.total, flags };
 }
@@ -462,3 +500,89 @@ function countsStage(compiled: CompiledChallenge, events: ActivityEvent[], add: 
   }
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Party stage (ADR-034): two-sided signed sightings, chain entanglement */
+/* ------------------------------------------------------------------ */
+
+type PartyArgs = {
+  sessionId: string;
+  userId: string;
+  partyId: string;
+  events: ActivityEvent[];
+  offsetMs: number;
+  add: (code: string, severity: Severity, details?: Record<string, unknown>) => void;
+};
+
+/** The fix nearest in time to `atMs` (corrected clock), within SIGHTING_FIX_WINDOW_MS. */
+function fixNear(events: ActivityEvent[], offsetMs: number, atMs: number): { lng: number; lat: number; acc: number } | null {
+  let best: { lng: number; lat: number; acc: number; dt: number } | null = null;
+  const consider = (ts: string, lng: number, lat: number, acc: number) => {
+    const dt = Math.abs(Date.parse(ts) + offsetMs - atMs);
+    if (dt <= SIGHTING_FIX_WINDOW_MS && (!best || dt < best.dt)) best = { lng, lat, acc, dt };
+  };
+  for (const e of events) {
+    if (e.type === 'SessionStarted') consider(e.payload.startFix.ts, e.payload.startFix.lng, e.payload.startFix.lat, e.payload.startFix.acc);
+    else if (e.type === 'LocationBatch') for (const p of e.payload.samples) if (!p.mocked) consider(p.ts, p.lng, p.lat, p.acc);
+  }
+  return best;
+}
+
+async function partyStage(ctx: AppContext, a: PartyArgs) {
+  const counts = new Map<string, { severity: Severity; n: number }>();
+  const flag = (code: string, severity: Severity) => counts.set(code, { severity, n: (counts.get(code)?.n ?? 0) + 1 });
+  const members = await ctx.db.query<{ session_id: string; user_id: string; clock_offset_ms_at_download: string | number | null }>(
+    `SELECT pm.session_id, pm.user_id, s.clock_offset_ms_at_download FROM party_members pm JOIN activity_sessions s ON s.id = pm.session_id WHERE pm.party_id = $1`,
+    [a.partyId],
+  );
+  const peerEvents = new Map<string, ActivityEvent[]>();
+  const loadPeer = async (sid: string) => {
+    if (!peerEvents.has(sid)) {
+      const rows = await ctx.db.query<EventRow>('SELECT * FROM activity_events WHERE session_id = $1 ORDER BY seq', [sid]);
+      peerEvents.set(sid, rows.map(toEvent));
+    }
+    return peerEvents.get(sid)!;
+  };
+  const keyOk = new Map<string, boolean>();
+
+  // 1. Sightings in THIS chain: signature, party, key, replay, the other side, distance.
+  for (const e of a.events) {
+    if (e.type !== 'PeerSighting') continue;
+    const tok = e.payload.peer;
+    const b = tok.body;
+    if (!verifySighting(tok)) { flag('SIGHTING_SIG_INVALID', 'critical'); continue; }
+    if (b.partyId !== a.partyId) { flag('SIGHTING_WRONG_PARTY', 'critical'); continue; }
+    if (b.sessionId === a.sessionId || b.userId === a.userId) { flag('SIGHTING_SELF', 'critical'); continue; }
+    const k = `${b.deviceId}|${b.userId}|${b.publicKey}`;
+    if (!keyOk.has(k)) {
+      const row = await ctx.db.one<{ public_key: string | null }>('SELECT public_key FROM devices WHERE id = $1 AND user_id = $2', [b.deviceId, b.userId]);
+      keyOk.set(k, !!row && row.public_key === b.publicKey);
+    }
+    if (!keyOk.get(k)) { flag('SIGHTING_KEY_UNKNOWN', 'critical'); continue; }
+    if (b.replyTo !== null && b.replyTo !== e.payload.myNonce) flag('SIGHTING_REPLAY', 'warn');
+    const peer = members.find((m) => m.session_id === b.sessionId);
+    if (!peer) { flag('SIGHTING_PENDING', 'info'); continue; }
+    const pe = await loadPeer(b.sessionId);
+    const other = pe.find((x) => x.type === 'PeerSighting' && x.payload.peer.body.sessionId === a.sessionId && x.payload.peer.body.nonce === e.payload.myNonce);
+    if (!other) { flag('SIGHTING_UNMATCHED', 'warn'); continue; }
+    const at = Date.parse(e.clientTs) + a.offsetMs;
+    // A QR handshake takes seconds: both sides' (corrected) times must agree.
+    const otherAt = Date.parse(other.clientTs) + Number(peer.clock_offset_ms_at_download ?? 0);
+    if (Math.abs(at - otherAt) > SIGHTING_FIX_WINDOW_MS) flag('SIGHTING_CLOCK', 'warn');
+    const mine = fixNear(a.events, a.offsetMs, at);
+    const theirs = fixNear(pe, Number(peer.clock_offset_ms_at_download ?? 0), at);
+    if (mine && theirs && haversineM([mine.lng, mine.lat], [theirs.lng, theirs.lat]) > SIGHTING_MAX_M + mine.acc + theirs.acc) flag('SIGHTING_DISTANT', 'warn');
+  }
+
+  // 2. Chain entanglement: what OTHER phones recorded about this chain must match this chain.
+  const ownHash = new Map(a.events.map((e) => [e.seq, e.hash]));
+  for (const m of members) {
+    if (m.session_id === a.sessionId) continue;
+    for (const x of await loadPeer(m.session_id)) {
+      if (x.type !== 'PeerSighting' || x.payload.peer.body.sessionId !== a.sessionId || !verifySighting(x.payload.peer)) continue;
+      const b = x.payload.peer.body;
+      if (ownHash.get(b.seq) !== b.chainHead) flag('CHAIN_FORK', 'critical');
+    }
+  }
+  for (const [code, { severity, n }] of counts) a.add(code, severity, { count: n });
+}

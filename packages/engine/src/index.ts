@@ -16,3 +16,4 @@ export * from './milestones';
 export * from './progression';
 export * from './quests';
 export * from './challenge-from-module';
+export * from './party';
