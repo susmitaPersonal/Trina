@@ -32,6 +32,7 @@ session.
 - [architecture/wellness.md](architecture/wellness.md): steps, calories, mood and mindful moments; privacy; cadence anti-cheat
 - [architecture/security.md](architecture/security.md): authentication, authorization, threats and controls
 - [architecture/milestones-and-custom-modules.md](architecture/milestones-and-custom-modules.md): Daily Quests (offline), milestones, XP/rank, guilds and timeline, custom data modules and the AI Module Builder
+- [architecture/offline-party-mode.md](architecture/offline-party-mode.md): adaptive quests, offline multiplayer parties (QR only), peer sightings anti-cheat
 
 ### Data and API
 - [data/postgres-schema.md](data/postgres-schema.md): server schema (authoritative)

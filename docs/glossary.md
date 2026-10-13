@@ -37,3 +37,7 @@
 | **Day key** | The local date a session belongs to: date of (start − 4 h) in the session's recorded UTC offset. |
 | **XP / RP / rank** | XP comes from milestones and quest minutes (with the weekly bonus and penalty). Rank points (RP) come only from verified activity minutes, offline time and photo proof. Ranks: E, D, C, B, A, S, Trina. |
 | **Guild** | A persistent group of up to 50 players with a board, a weekly Guild Quest and a timeline digest. |
+| **Offline party** | 2–11 players, internet off, playing one mission. The **host** shows a signed invite QR; every phone rebuilds the same mission and shows the same 4 **check words**. Each player keeps their own session. |
+| **Peer sighting** | A two-sided QR handshake between party phones, recorded in both chains with the other phone's chain head. Lets the server detect a rewritten log (`CHAIN_FORK`). |
+| **Gossip (party summaries)** | Signed progress snapshots passed phone-to-phone by QR; merged per player, newest wins, so every phone converges on the same party total. |
+| **Adaptive quest length** | The suggested Daily Quest length moves up after 3 completed quests at a length and down after struggles, capped by rank (ADR-032). |

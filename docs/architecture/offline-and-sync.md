@@ -37,6 +37,9 @@
 signed), `ConfirmationReceived` (subject's chain), `ConnectivityChanged` `{online, transport}` and `QuestStopped`
 `{kind: force|safety, reason}`; `SessionStarted` gains optional `tzOffsetMin` and `quest`. All additive; the server must be
 deployed before apps send them ([milestones-and-custom-modules.md](milestones-and-custom-modules.md)).
+**Offline parties add:** `PeerSighting` `{sightingId, kind: join|checkpoint|wrapup, peer: signed SightingToken, myNonce}` and
+`SessionStarted.party = {invite, role}`. Additive (no `schemaVersion` bump); party progress summaries are local gossip, not
+events ([offline-party-mode.md](offline-party-mode.md)).
 
 **Mood is deliberately not an event.** It doesn't matter for anti-cheat, and keeping it out of the hash
 chain means it can stay private. It's stored in `sessions.wellness_json` on the device and included in

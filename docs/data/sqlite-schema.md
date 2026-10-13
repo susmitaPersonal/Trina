@@ -40,6 +40,16 @@
 `sessions` gains `quest_json` and `quest_definition_json` (offline Daily Quests are built on the phone). The device's
 Ed25519 key lives in the secure store, never in SQLite.
 
+## Offline parties (migration 3, ADR-033)
+
+| Table | Columns | Lifetime |
+|---|---|---|
+| `party_offers` | nonce PK, session_id, created_at, used | Codes this phone showed; an answer must reply to one (anti-replay) |
+| `party_answers` | peer_nonce PK, session_id, frames_json, peer_name, created_at | Re-scanning the same offer returns the same answer (no duplicate events) |
+| `party_summaries` | party_id, user_id, json (signed `PartySummary`) | PK(party_id, user_id); gossip, derived and provisional, **not** events |
+
+`sessions` gains `party_json` (`{invite, role}`); party definitions are rebuilt from the invite and kept in `quest_definition_json`.
+
 ## Indexes
 
 - `events(sync_state, session_id, seq)`: sync worker scan

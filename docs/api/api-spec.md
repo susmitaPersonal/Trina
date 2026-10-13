@@ -148,11 +148,21 @@ includes `modules[]` (the pinned definitions) and `participantKeys[]` (Ed25519 p
 | `GET /milestones` | bearer | `?moduleId=&version=` | `MilestoneCatalogItemDto[] {key, moduleId, milestoneId, title, description, window, tiers, verification, stat, hidden}` | Generic quests (`*`) + modules; a custom module only if visible to the caller |
 | `GET /me/milestones` | owner | `?window=day\|week\|month\|lifetime\|all&date=YYYY-MM-DD` | `{windowKey, items:[{key, windowKey, tier, title, value, verification, label, stat, dayKey, unlockedAt}]}` | Final (server) unlocks only; `label` ∈ Measured / Evidenced / Confirmed / Self-reported |
 | `GET /me/progress` | owner | n/a | `ProgressDto {xp, xpByStat, rankPoints, rank, nextRank, verifiedOutdoorMinutes, offlineQuestMinutes, todayXp, dailyXpCap, week:{weekKey, bonus, penalty, forceStopDays, offline90Days}, engineVersion}` | XP/rank never feed challenge score |
-| `GET /me/quests` | owner | `?date=` | `DailyQuestDto {dayKey, levelTier, targetMinutes, quests[3]}` | Deterministic per player and day (the phone computes the same list offline) |
+| `GET /me/quests` | owner | `?date=` | `DailyQuestDto {dayKey, levelTier, targetMinutes, targetReason?, maxMinutes?, quests[3]}` | Deterministic per player and day (the phone computes the same list offline). `targetMinutes` comes from the adaptive ladder over verified quests (ADR-032); `maxMinutes` is the rank cap |
 | `PUT /me/devices/current/key` | bearer | `{publicKey}` (64 hex) | 204 | Once per install; a different key for the same device → 409 |
 
 **Daily Quest sessions** need no join: `SessionStarted.challengeId` is the well-known `0192d41e-0000-7000-8000-000000000001`
 and `payload.quest` names the template; the server rebuilds the definition and checks its hash.
+
+## Offline parties (ADR-033, ADR-034)
+
+| Method & path | Auth | Request | Response | Notes |
+|---|---|---|---|---|
+| `GET /parties/:id` | member | n/a | `{partyId, spec, hostUserId, members[{userId, displayName, role, verdict, verified, goalValue, done}], goal{members, total, target, reached, membersDone, label, pending}}` | Non-members → 404. Goal counts **verified** sessions only. No locations |
+
+Parties are created by sync, never by an endpoint: `SessionStarted.challengeId` is `0192d41e-0000-7000-8000-000000000002` and
+`payload.party = {invite, role}` carries the host's signed invite. Everything between phones (invite, sightings, summaries)
+travels as `TRINAP1:` QR frames ([design §3–5](../architecture/offline-party-mode.md)).
 
 ## Guilds (ADR-031, demo cut)
 

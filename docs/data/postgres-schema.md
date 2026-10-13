@@ -102,6 +102,15 @@ not in normalized tables. Only queryable fields are projected into columns. See 
 `devices.public_key` now holds the Ed25519 key (ADR-026). A system user (`system@trina.invalid`, unusable password) and the
 archived **Daily Quest** challenge (`0192d41e-0000-7000-8000-000000000001`) anchor quest sessions.
 
+## Offline parties (migration 4, ADR-033)
+
+| Table | Columns | Notes |
+|---|---|---|
+| `parties` | id uuid PK (client `partyId`), invite_hash, host_user_id, spec jsonb, created_at | Created by sync from the first session's signed invite; `spec` is enums only, **no coordinates** |
+| `party_members` | session_id PK, party_id FK, user_id, role (`host`\|`member`), created_at | One row per party session; > 11 users → `PARTY_FULL` (warn) |
+
+The archived **Offline Party** challenge (`0192d41e-0000-7000-8000-000000000002`) anchors party sessions like the Daily Quest row.
+
 ## AI and audit
 
 | Table | Columns | Notes |

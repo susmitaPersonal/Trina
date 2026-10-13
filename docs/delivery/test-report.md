@@ -1,14 +1,14 @@
 # Test report
 
 **Date:** 2026-10-11 · **Result:** ✅ everything automated passes · ⏳ **no device testing** (toolchains missing, see below)
-**Total:** **538 automated tests** + 19-check live smoke test + 64-prompt AI eval (16 challenge + 48 module) + Android and iOS bundle checks
+**Total:** **638 automated tests** + 20-check live smoke test + 94-prompt AI eval (16 challenge + 48 module + 30 theme) + Android and iOS bundle checks
 
 ## How to run
 
 Use Node 22+ (24 recommended; the repo has `.nvmrc`).
 
 ```bash
-pnpm -r --workspace-concurrency=1 test   # all 538 tests (unit, property, integration, system, chaos, UI)
+pnpm -r --workspace-concurrency=1 test   # all 638 tests (unit, property, integration, system, chaos, UI)
 pnpm smoke                               # spawns the real server, drives it over HTTP (19 checks)
 pnpm test:ui                             # React Native screen tests only (Jest)
 pnpm eval:ai                             # challenge + module eval suites (set LLM_BASE_URL for a real model)
@@ -21,16 +21,17 @@ maestro test apps/mobile/.maestro        # device E2E (needs an emulator/phone; 
 
 | Package / layer | Files | Tests | Result |
 |---|---|---|---|
-| `contracts`: schemas, hashing, UUIDv7; **Module/Milestone DSL, ModuleIntent, safety filter (EN/BN/HI), signed confirmations, QR codes, new events, DSL 1.0/1.1** | 3 | 86 | ✅ |
-| `engine`: golden runs, cheat cases, property invariants, all modules, geometry; **data modules (valid/invalid/unsafe/farmable), registry merge + versioning, budgets, counters, confirmations, zone dwell, offline time, milestone evaluator, day keys/time zones, streaks, co-presence, progression, quests** | 6 | 157 | ✅ |
-| `ai`: pipeline, repair/fallback, router, recap guard; **Module Builder: every schema-valid intent compiles (property), injection/sensor/points rejected, refusals before the model, English-only, eval gate** | 4 | 64 | ✅ |
-| `server`: every route, authz, privacy, retention, rate limits, anti-cheat matrix; **modules (create/publish/fork/report/moderate/IDOR/idempotency/quotas), AI module drafts, custom-module challenges + bundles, signed confirmations and every Claims flag, offline quests, exactly-once milestones + revocation, guilds, rate limits, retention** | 7 | 84 | ✅ |
-| `mobile` core + system: event log, sync, phone ⇄ server; **custom module → offline QR handshake → sync → server agrees; QuestGuard blocks every request; chaos property: exactly-once unlocks and notifications; reconcile rules; pass 5: truncated server list, interrupted reconcile, rejected sessions, 6-claim handshake, shared phone** | 8 | 69 | ✅ |
-| `mobile` UI: 23 earlier screens + **Today, Quest Start, Status, Milestone History/Detail, Module Builder/Detail, Confirm (ask/scan), Guilds (online/offline), Home carousel, Live quest + counter pad, notification copy, quest runtime grace/pause; pass 5: scanner retry, quest level tier** | 5 | 78 | ✅ |
-| **Total automated** | **33** | **538** | ✅ |
-| Live smoke (real server process over HTTP) | 1 | 19 checks | ✅ |
+| `contracts`: schemas, hashing, UUIDv7; **Module/Milestone DSL, ModuleIntent, safety filter (EN/BN/HI), signed confirmations, QR codes, new events, DSL 1.0/1.1** | 4 | 97 | ✅ |
+| `engine`: golden runs, cheat cases, property invariants, all modules, geometry; **data modules (valid/invalid/unsafe/farmable), registry merge + versioning, budgets, counters, confirmations, zone dwell, offline time, milestone evaluator, day keys/time zones, streaks, co-presence, progression, quests; party: definition determinism, merge laws (CRDT property), goals, adaptive ladder** | 7 | 180 | ✅ |
+| `ai`: pipeline, repair/fallback, router, recap guard; **Module Builder: every schema-valid intent compiles (property), injection/sensor/points rejected, refusals before the model, English-only, eval gate; theme picker (EN/BN/HI, injection, model misbehaviour → rules)** | 5 | 99 | ✅ |
+| `server`: every route, authz, privacy, retention, rate limits, anti-cheat matrix; **modules (create/publish/fork/report/moderate/IDOR/idempotency/quotas), AI module drafts, custom-module challenges + bundles, signed confirmations and every Claims flag, offline quests, exactly-once milestones + revocation, guilds, rate limits, retention; **offline parties: invite/definition/role/full checks, every sighting flag, `CHAIN_FORK`, re-validation, members-only goal, adaptive quest length**** | 8 | 102 | ✅ |
+| `mobile` core + system: event log, sync, phone ⇄ server; **custom module → offline QR handshake → sync → server agrees; QuestGuard blocks every request; chaos property: exactly-once unlocks and notifications; reconcile rules; pass 5: truncated server list, interrupted reconcile, rejected sessions, 6-claim handshake, shared phone; 3 phones play an offline party over QR only (0 requests) → server verifies all; every bad scan refused; 11-member gossip in ≤ 4 frames** | 9 | 72 | ✅ |
+| `mobile` UI: 23 earlier screens + **Today, Quest Start, Status, Milestone History/Detail, Module Builder/Detail, Confirm (ask/scan), Guilds (online/offline), Home carousel, Live quest + counter pad, notification copy, quest runtime grace/pause; pass 5: scanner retry, quest level tier; Party hub/host/join/play (real signed codes), vibe → theme, rank-capped lengths** | 6 | 88 | ✅ |
+| **Total automated** | **39** | **638** | ✅ |
+| Live smoke (real server process over HTTP) | 1 | 20 checks | ✅ |
 | AI eval, challenges (rule-based baseline) | 1 | 16 prompts | ✅ 100% valid / compile / constraints |
 | AI eval, modules (rule-based baseline) | 1 | 48 prompts (14 EN, 6 BN, 6 HI, 4 code-mixed, 10 unsafe, 6 injection, 2 ambiguous) | ✅ 100% adherence · 100% valid modules · **100% unsafe handled** · 0% false blocks |
+| AI eval, themes (rule-based baseline) | 1 | 30 prompts (EN/BN/HI + 5 injection/empty) | ✅ 100% agreement · 100% enum-only |
 | Android JS bundle (Metro, Hermes) | n/a | 1,324 modules | ✅ |
 | iOS JS bundle (Metro, Hermes) | n/a | 1,327 modules | ✅ |
 | Lint / typecheck | n/a | 5 packages | ✅ 0 errors (56 `any` warnings, mostly older untyped DB rows and `useNavigation<any>()`) |
@@ -93,6 +94,8 @@ demanded a full sync. Now: with no `ok` it asserts nothing is lost or rejected; 
 | # | Found by | Bug |
 |---|---|---|
 | 1–5 | (2026-10-10) | See git history: pause/resume, distance while paused, play-area size, disabled buttons, rule text |
+| P1 | Party tests (2026-10-12) | Sighting distance was skipped when the two sides of one handshake were recorded minutes apart: added `SIGHTING_CLOCK` |
+| P2 | Party tests | Gossip property test timed out: every merge re-verified every signature (slow on phones too). Added a verified-signature cache keyed by the full signed content |
 | 6 | Design review of the code | `OrganizerConfirmation` was written by the participant into their own chain and marked tasks done: forgeable. Now self-report only; real confirmations are signed and two-sided |
 | 7 | Server seeding test | The Daily Quest system user made `seedIfEmpty` think the DB was seeded, so dev demo users were never created |
 | 8 | Server integration test | A water module drafted as "private only" became shareable after saving (risk came only from the prompt). Risk now also follows the module's safety notes |

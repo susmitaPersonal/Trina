@@ -39,6 +39,9 @@ Agents: if your work conflicts with an ADR, stop and raise it instead of divergi
 | 029 | **Versioning:** module DSL `module/1.0` separate from the challenge DSL; challenge DSL 1.1 (additive); `ENGINE_VERSION` 2; the server deploys before clients send new event types | Accepted |
 | 030 | **Offline Quest Mode:** Daily Quests run with mobile data and Wi-Fi off; the app asks (it can't switch them off) and blocks all its own traffic during a quest; sync before and after; online mid-quest pauses after 60 s; offline time recorded as events and checked against server request minutes; +15 XP for 3+ days of 90 min in a week; −10 XP for force stops on 3+ days in a week (safety stops exempt) | Accepted |
 | 031 | **Guilds and timeline:** persistent groups (≤ 50 members, ≤ 5 guilds per player, invite only), guild boards and Guild Quests; timeline is a daily digest without places, routes, photos or times, on by default with per-guild opt-out; fixed congrats messages delivered after the receiver is online | Accepted |
+| 032 | **Adaptive quests:** a fixed engine ladder over measured history picks minutes, tier and task count; the AI may only pick a theme/task-hint enum and narrate; the server checks bounds ([design](../architecture/offline-party-mode.md)) | Accepted |
+| 033 | **Offline party (QR only, 2–11 logged-in players):** host-created missions shared as a signed parameter invite (QR); every device rebuilds and hash-checks the definition; per-player chains, no shared state; progress spreads as signed max-seq summaries (CRDT gossip); party goals give milestone XP only, never score or rank | Accepted |
+| 034 | **Peer sightings:** two-sided signed QR sightings cross-link players' chain heads (`CHAIN_FORK` detection) and give offline co-presence; payloads carry no coordinates | Accepted |
 
 ## Context and consequences (short)
 

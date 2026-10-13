@@ -75,6 +75,7 @@ progress, and what is next. Update it when you finish meaningful work.
 | What the AI does and doesn't do | [docs/product/what-ai-does.md](docs/product/what-ai-does.md) |
 | Steps / calories / mood | [docs/architecture/wellness.md](docs/architecture/wellness.md) |
 | Quests, milestones, XP/rank, guilds, custom modules | [docs/architecture/milestones-and-custom-modules.md](docs/architecture/milestones-and-custom-modules.md) |
+| Offline parties, adaptive quests, peer sightings | [docs/architecture/offline-party-mode.md](docs/architecture/offline-party-mode.md) |
 | System overview | [docs/architecture/overview.md](docs/architecture/overview.md) |
 | Mobile app | [docs/architecture/mobile.md](docs/architecture/mobile.md) |
 | Backend API | [docs/architecture/backend.md](docs/architecture/backend.md), [docs/api/api-spec.md](docs/api/api-spec.md) |

@@ -78,3 +78,12 @@ Design: [../architecture/milestones-and-custom-modules.md](../architecture/miles
 - [x] ★ M8 Offline Quest Mode: pre-sync, go-offline gate, `QuestGuard`, pause/stop, request-minute check
 - [x] M9 Guilds + board + Guild Quest (★ demo cut) · [ ] timeline digest + congrats (deferred)
 - **Exit:** a 30-min Daily Quest played fully offline syncs afterwards with correct XP and milestones on device and server ✅ (system test + smoke; not yet on a device)
+
+## Phase 7: Offline Party Mode (implemented 2026-10-12; device checks pending)
+Design: [../architecture/offline-party-mode.md](../architecture/offline-party-mode.md) (ADR-032 to 034). QR only, 2–11 players.
+- [x] 7a Contracts + engine: signed invite/sighting/summary codes, multi-frame QR, check words; `buildPartyDefinition`, `mergeSummaries` (CRDT), `evaluatePartyGoal`, `adaptQuest`
+- [x] 7b Mobile: `PartyService`, party lobby (host/join), meetings, progress sharing, party card on the live screen
+- [x] 7c Server: migration 4 (`parties`, `party_members`), Party validation stage (`CHAIN_FORK`, sightings), `GET /v1/parties/:id`
+- [x] 7d Adaptive Daily Quest length + AI theme picker (enum only) with a 30-case EN/BN/HI eval
+- [ ] Party goal → milestone XP (owner default, not built yet); party sessions earning offline-quest XP
+- **Exit:** 3 phones, internet off, QR only, finish a party and see the same total on all; server verifies all ✅ (system test + smoke; not yet on a device)
